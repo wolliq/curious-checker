@@ -1,4 +1,4 @@
-name: CI
+name: CI for curious-checker
 
 on:
   push:
@@ -9,12 +9,29 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v3
       - name: Install Python
         run: uv python install 3.12
       - name: Sync dependencies
         run: uv sync --extra dev
       - name: Run tests
         run: uv run pytest
+      - name: Tag release and fallback
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --tags origin
+          if git rev-parse release >/dev/null 2>&1; then
+            previous_release=$(git rev-parse release)
+            git tag -f fallback "$previous_release"
+            git push origin fallback --force
+          fi
+          git tag -f release "$GITHUB_SHA"
+          git push origin release --force
